@@ -3,64 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFmpeg Studio Web - GitHub Pages</title>
+    <title>FFmpeg Studio Pro</title>
     <script src="coi-serviceworker.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        #console { font-family: 'Courier New', monospace; background: #0d1117; color: #39d353; height: 180px; overflow-y: auto; border: 1px solid #30363d; }
-        .btn-active:active { transform: scale(0.95); }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        #console { font-family: 'ui-monospace', monospace; background: #020617; color: #10b981; }
+        .loader-bar { height: 4px; background: #3b82f6; transition: width 0.3s ease; width: 0%; }
     </style>
 </head>
-<body class="bg-[#010409] text-gray-300 min-h-screen p-4 md:p-8">
+<body class="text-slate-200 min-h-screen">
 
-    <div class="max-w-5xl mx-auto">
-        <header class="mb-8 flex items-center justify-between border-b border-gray-800 pb-4">
-            <h1 class="text-2xl font-black text-white flex items-center gap-2">
-                <span class="text-blue-500">🎬</span> FFmpeg Studio <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded ml-2">v0.12</span>
-            </h1>
-            <p class="text-sm text-gray-500 hidden md:block">Procesamiento local 100% gratuito</p>
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+            <div>
+                <h1 class="text-4xl font-black text-white tracking-tight italic">FFMPEG<span class="text-blue-500 text-2xl not-italic">.STUDIO</span></h1>
+                <p class="text-slate-400 text-sm">Edición de video de alto rendimiento directamente en tu navegador.</p>
+            </div>
+            <div id="status-badge" class="px-3 py-1 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 text-xs font-bold w-fit">
+                NÚCLEO DESCONECTADO
+            </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="space-y-6">
-                <div class="bg-[#161b22] p-5 rounded-xl border border-gray-800 shadow-sm">
-                    <h2 class="text-sm font-bold uppercase text-gray-400 mb-4 tracking-tighter">1. Cargar Medios</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <section class="glass p-6 rounded-2xl shadow-2xl">
+                    <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">1. Cargar Archivos</h2>
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Video o Imagen Principal</label>
-                            <input type="file" id="input-file" class="w-full text-xs text-gray-400 file:bg-blue-600 file:text-white file:border-0 file:px-3 file:py-2 file:rounded file:mr-2 cursor-pointer">
+                        <div class="group">
+                            <label class="block text-sm font-bold mb-2 group-hover:text-blue-400 transition">Video / Imagen Base</label>
+                            <input type="file" id="input-file" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer transition">
                         </div>
-                        <div>
-                            <label class="block text-xs text-gray-500 mb-1">Audio (Solo para Unir)</label>
-                            <input type="file" id="audio-file" class="w-full text-xs text-gray-400 file:bg-green-600 file:text-white file:border-0 file:px-3 file:py-2 file:rounded file:mr-2 cursor-pointer">
+                        <div class="group">
+                            <label class="block text-sm font-bold mb-2 group-hover:text-green-400 transition">Audio Complementario</label>
+                            <input type="file" id="audio-file" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer transition">
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div class="bg-[#161b22] p-5 rounded-xl border border-gray-800 shadow-sm">
-                    <h2 class="text-sm font-bold uppercase text-gray-400 mb-4 tracking-tighter">2. Acciones</h2>
-                    <div class="grid grid-cols-1 gap-2">
-                        <button onclick="process('merge')" class="bg-blue-600 hover:bg-blue-500 py-2 rounded text-sm font-bold transition btn-active">📸 Unir Foto + Audio</button>
-                        <button onclick="process('trim')" class="bg-orange-600 hover:bg-orange-500 py-2 rounded text-sm font-bold transition btn-active">✂️ Cortar (10 a 20s)</button>
-                        <button onclick="process('text')" class="bg-purple-600 hover:bg-purple-500 py-2 rounded text-sm font-bold transition btn-active">✍️ Añadir Texto</button>
-                        <button onclick="process('gif')" class="bg-teal-600 hover:bg-teal-500 py-2 rounded text-sm font-bold transition btn-active">🖼️ Convertir a GIF</button>
+                <section class="glass p-6 rounded-2xl shadow-2xl">
+                    <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">2. Herramientas</h2>
+                    <div class="grid grid-cols-1 gap-3">
+                        <button onclick="process('merge')" class="w-full py-3 rounded-xl bg-slate-700 hover:bg-blue-600 font-bold transition-all transform hover:-translate-y-1 shadow-lg">📸 Unir Multimedia</button>
+                        <button onclick="process('trim')" class="w-full py-3 rounded-xl bg-slate-700 hover:bg-orange-600 font-bold transition-all transform hover:-translate-y-1 shadow-lg">✂️ Cortar (10-20s)</button>
+                        <button onclick="process('text')" class="w-full py-3 rounded-xl bg-slate-700 hover:bg-purple-600 font-bold transition-all transform hover:-translate-y-1 shadow-lg">✍️ Marca de Agua</button>
+                        <button onclick="process('gif')" class="w-full py-3 rounded-xl bg-slate-700 hover:bg-teal-600 font-bold transition-all transform hover:-translate-y-1 shadow-lg">🖼️ Generar GIF</button>
                     </div>
-                </div>
+                </section>
             </div>
 
-            <div class="lg:col-span-2 space-y-6">
-                <div class="space-y-2">
-                    <div id="console" class="p-4 text-xs rounded-lg shadow-inner">
-                        <span class="text-gray-500">>> Esperando archivos y acción...</span>
+            <div class="lg:col-span-8 space-y-6">
+                <div class="glass rounded-2xl overflow-hidden shadow-2xl">
+                    <div class="bg-black aspect-video flex items-center justify-center relative">
+                        <video id="output-video" controls class="w-full h-full object-contain"></video>
+                        <div id="processing-overlay" class="absolute inset-0 bg-black/80 hidden flex-col items-center justify-center space-y-4">
+                            <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <p class="text-blue-500 font-black tracking-widest animate-pulse">PROCESANDO...</p>
+                        </div>
                     </div>
-                    <div class="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
-                        <div id="progress-bar" class="h-full bg-blue-500 w-0 transition-all"></div>
+                    <div class="p-4 border-t border-white/5 flex justify-between items-center">
+                        <span class="text-xs text-slate-500 font-mono" id="file-info">Sin archivos procesados</span>
+                        <a id="download-link" class="hidden text-xs font-black bg-white text-black px-4 py-2 rounded-full hover:bg-blue-400 transition shadow-xl">DESCARGAR RESULTADO</a>
                     </div>
                 </div>
 
-                <div class="bg-[#161b22] p-2 rounded-xl border border-gray-800 flex flex-col items-center">
-                    <video id="output-video" controls class="w-full rounded-lg bg-black aspect-video shadow-2xl"></video>
-                    <a id="download-link" class="hidden mt-4 w-full text-center bg-white text-black py-3 rounded-lg font-black uppercase tracking-widest hover:bg-gray-200 transition">Descargar Archivo</a>
+                <div class="space-y-2">
+                    <div class="w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="loader-bar"></div>
+                    </div>
+                    <div id="console" class="p-4 text-[10px] rounded-xl h-40 overflow-y-auto border border-white/5 shadow-inner">
+                        <span class="text-slate-500 italic">>> Sistema listo. Cargue archivos para comenzar...</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -73,9 +88,14 @@
         const ffmpeg = new FFmpeg();
         const logger = document.getElementById('console');
         const progress = document.getElementById('progress-bar');
+        const overlay = document.getElementById('processing-overlay');
+        const badge = document.getElementById('status-badge');
 
         function log(msg) {
-            logger.innerHTML += `<div class="mb-1"><span class="text-blue-400">#</span> ${msg}</div>`;
+            const entry = document.createElement('div');
+            entry.className = 'mb-1 border-l-2 border-slate-700 pl-2';
+            entry.innerHTML = `<span class="text-slate-600">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+            logger.appendChild(entry);
             logger.scrollTop = logger.scrollHeight;
         }
 
@@ -83,42 +103,52 @@
             const mainFile = document.getElementById('input-file').files[0];
             const audioFile = document.getElementById('audio-file').files[0];
 
-            if (!mainFile) return alert("Selecciona el archivo principal");
+            if (!mainFile) return alert("Error: Selecciona un archivo principal.");
 
             try {
+                overlay.classList.remove('hidden');
+                
                 if (!ffmpeg.loaded) {
-                    log("Cargando motor FFmpeg (aprox. 30MB)...");
+                    log("Iniciando descarga del motor FFmpeg (Carga única de 30MB)...");
                     await ffmpeg.load({
                         coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+                        wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm'
                     });
-                    ffmpeg.on('log', ({ message }) => log(message));
-                    ffmpeg.on('progress', ({ progress: p }) => {
-                        progress.style.width = `${p * 100}%`;
-                    });
+                    badge.innerHTML = "MOTOR ACTIVO";
+                    badge.className = "px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-xs font-bold w-fit";
                 }
 
-                log("Subiendo archivos al sistema virtual...");
+                ffmpeg.on('log', ({ message }) => log(message));
+                ffmpeg.on('progress', ({ progress: p }) => {
+                    progress.style.width = `${p * 100}%`;
+                });
+
+                log("Importando archivos...");
                 await ffmpeg.writeFile('input_src', await fetchFile(mainFile));
 
                 let command = [];
                 let outputName = 'output.mp4';
                 let mimeType = 'video/mp4';
 
-                if (type === 'merge') {
-                    if (!audioFile) throw new Error("Necesitas un audio para unirlo a la imagen");
-                    await ffmpeg.writeFile('audio_src', await fetchFile(audioFile));
-                    command = ['-loop', '1', '-i', 'input_src', '-i', 'audio_src', '-c:v', 'libx264', '-tune', 'stillimage', '-c:a', 'aac', '-b:a', '192k', '-pix_fmt', 'yuv420p', '-shortest', 'output.mp4'];
-                } else if (type === 'trim') {
-                    command = ['-i', 'input_src', '-ss', '00:00:10', '-to', '00:01:20', '-c', 'copy', 'output.mp4'];
-                } else if (type === 'text') {
-                    command = ['-i', 'input_src', '-vf', "drawtext=text='PROCESADO EN WEB':x=(w-text_w)/2:y=h-80:fontsize=48:fontcolor=white:box=1:boxcolor=black@0.5", '-c:a', 'copy', 'output.mp4'];
-                } else if (type === 'gif') {
-                    outputName = 'output.gif';
-                    mimeType = 'image/gif';
-                    command = ['-i', 'input_src', '-vf', 'fps=10,scale=480:-1:flags=lanczos', '-c:v', 'gif', 'output.gif'];
+                switch(type) {
+                    case 'merge':
+                        if (!audioFile) throw new Error("Se requiere archivo de audio.");
+                        await ffmpeg.writeFile('audio_src', await fetchFile(audioFile));
+                        command = ['-loop', '1', '-i', 'input_src', '-i', 'audio_src', '-c:v', 'libx264', '-tune', 'stillimage', '-c:a', 'aac', '-b:a', '192k', '-pix_fmt', 'yuv420p', '-shortest', 'output.mp4'];
+                        break;
+                    case 'trim':
+                        command = ['-i', 'input_src', '-ss', '00:00:10', '-to', '00:00:20', '-c:v', 'libx264', '-c:a', 'aac', 'output.mp4'];
+                        break;
+                    case 'text':
+                        command = ['-i', 'input_src', '-vf', "drawtext=text='FFMPEG STUDIO':x=(w-text_w)/2:y=h-80:fontsize=40:fontcolor=white:box=1:boxcolor=black@0.4", '-c:a', 'copy', 'output.mp4'];
+                        break;
+                    case 'gif':
+                        outputName = 'output.gif'; mimeType = 'image/gif';
+                        command = ['-i', 'input_src', '-vf', 'fps=10,scale=480:-1:flags=lanczos', 'output.gif'];
+                        break;
                 }
 
-                log("Ejecutando FFmpeg... esto puede tardar según el tamaño del archivo.");
+                log("Procesando comando FFmpeg...");
                 await ffmpeg.exec(command);
 
                 const data = await ffmpeg.readFile(outputName);
@@ -129,13 +159,16 @@
                 dl.href = url;
                 dl.download = outputName;
                 dl.classList.remove('hidden');
-                log("<b>¡Hecho! El resultado está listo abajo.</b>");
+                document.getElementById('file-info').innerText = `Éxito: ${outputName}`;
+                log("<span class='text-emerald-400 font-bold'>PROCESO COMPLETADO EXITOSAMENTE.</span>");
 
             } catch (err) {
-                log(`<span class="text-red-500 italic">Error: ${err.message}</span>`);
+                log(`<span class="text-red-500 underline">ERROR: ${err.message}</span>`);
+            } finally {
+                overlay.classList.add('hidden');
+                progress.style.width = '0%';
             }
         }
-
         window.process = process;
     </script>
 </body>
