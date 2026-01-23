@@ -3,146 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FFmpeg Web Studio - Fix</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/coi-serviceworker/0.1.7/coi-serviceworker.min.js"></script>
+    <title>FFmpeg Studio Web - GitHub Pages</title>
+    <script src="coi-serviceworker.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        #console { font-family: monospace; background: #1a1a1a; color: #00ff00; height: 150px; overflow-y: auto; scroll-behavior: smooth; }
-        .loading { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        #console { font-family: 'Courier New', monospace; background: #0d1117; color: #39d353; height: 180px; overflow-y: auto; border: 1px solid #30363d; }
+        .btn-active:active { transform: scale(0.95); }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-5">
+<body class="bg-[#010409] text-gray-300 min-h-screen p-4 md:p-8">
 
-    <div class="max-w-4xl mx-auto bg-gray-800 p-8 rounded-xl shadow-2xl border border-gray-700">
-        <h1 class="text-3xl font-bold mb-6 flex items-center gap-3">
-            <span>🎬</span> FFmpeg Web Studio
-        </h1>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div class="space-y-4">
-                <div class="bg-gray-700/50 p-3 rounded-lg">
-                    <label class="block text-xs font-bold uppercase tracking-wider text-blue-400 mb-2">Archivo Principal (Video/Imagen):</label>
-                    <input type="file" id="input-file" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 flex items-center justify-between border-b border-gray-800 pb-4">
+            <h1 class="text-2xl font-black text-white flex items-center gap-2">
+                <span class="text-blue-500">🎬</span> FFmpeg Studio <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded ml-2">v0.12</span>
+            </h1>
+            <p class="text-sm text-gray-500 hidden md:block">Procesamiento local 100% gratuito</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="space-y-6">
+                <div class="bg-[#161b22] p-5 rounded-xl border border-gray-800 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-400 mb-4 tracking-tighter">1. Cargar Medios</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Video o Imagen Principal</label>
+                            <input type="file" id="input-file" class="w-full text-xs text-gray-400 file:bg-blue-600 file:text-white file:border-0 file:px-3 file:py-2 file:rounded file:mr-2 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Audio (Solo para Unir)</label>
+                            <input type="file" id="audio-file" class="w-full text-xs text-gray-400 file:bg-green-600 file:text-white file:border-0 file:px-3 file:py-2 file:rounded file:mr-2 cursor-pointer">
+                        </div>
+                    </div>
                 </div>
-                <div class="bg-gray-700/50 p-3 rounded-lg">
-                    <label class="block text-xs font-bold uppercase tracking-wider text-green-400 mb-2">Audio (Opcional):</label>
-                    <input type="file" id="audio-file" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-green-600 file:text-white hover:file:bg-green-700 cursor-pointer">
+
+                <div class="bg-[#161b22] p-5 rounded-xl border border-gray-800 shadow-sm">
+                    <h2 class="text-sm font-bold uppercase text-gray-400 mb-4 tracking-tighter">2. Acciones</h2>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button onclick="process('merge')" class="bg-blue-600 hover:bg-blue-500 py-2 rounded text-sm font-bold transition btn-active">📸 Unir Foto + Audio</button>
+                        <button onclick="process('trim')" class="bg-orange-600 hover:bg-orange-500 py-2 rounded text-sm font-bold transition btn-active">✂️ Cortar (10 a 20s)</button>
+                        <button onclick="process('text')" class="bg-purple-600 hover:bg-purple-500 py-2 rounded text-sm font-bold transition btn-active">✍️ Añadir Texto</button>
+                        <button onclick="process('gif')" class="bg-teal-600 hover:bg-teal-500 py-2 rounded text-sm font-bold transition btn-active">🖼️ Convertir a GIF</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-gray-700 p-4 rounded-lg">
-                <h2 class="font-bold text-sm uppercase tracking-wider text-gray-400 mb-4">Herramientas Rápidas:</h2>
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="render('merge')" class="bg-indigo-600 hover:bg-indigo-500 p-2 rounded text-sm font-bold transition">Unir Foto+Audio</button>
-                    <button onclick="render('trim')" class="bg-yellow-600 hover:bg-yellow-500 p-2 rounded text-sm font-bold transition">Cortar (10-20s)</button>
-                    <button onclick="render('text')" class="bg-pink-600 hover:bg-pink-500 p-2 rounded text-sm font-bold transition">Añadir Texto</button>
-                    <button onclick="render('gif')" class="bg-teal-600 hover:bg-teal-500 p-2 rounded text-sm font-bold transition">Convertir a GIF</button>
+            <div class="lg:col-span-2 space-y-6">
+                <div class="space-y-2">
+                    <div id="console" class="p-4 text-xs rounded-lg shadow-inner">
+                        <span class="text-gray-500">>> Esperando archivos y acción...</span>
+                    </div>
+                    <div class="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="h-full bg-blue-500 w-0 transition-all"></div>
+                    </div>
+                </div>
+
+                <div class="bg-[#161b22] p-2 rounded-xl border border-gray-800 flex flex-col items-center">
+                    <video id="output-video" controls class="w-full rounded-lg bg-black aspect-video shadow-2xl"></video>
+                    <a id="download-link" class="hidden mt-4 w-full text-center bg-white text-black py-3 rounded-lg font-black uppercase tracking-widest hover:bg-gray-200 transition">Descargar Archivo</a>
                 </div>
             </div>
-        </div>
-
-        <div class="mb-6">
-            <div id="console" class="p-3 text-xs rounded border border-gray-600 shadow-inner">Iniciando sistema...</div>
-            <div class="w-full bg-gray-900 h-2 mt-2 rounded-full overflow-hidden">
-                <div id="progress-bar" class="bg-blue-500 h-full w-0 transition-all duration-300"></div>
-            </div>
-        </div>
-
-        <div class="text-center border-t border-gray-700 pt-6">
-            <h2 class="text-lg font-bold mb-4 text-gray-400">Previsualización</h2>
-            <div class="relative inline-block w-full">
-                <video id="output-video" controls class="w-full max-h-[400px] bg-black rounded-lg shadow-2xl"></video>
-            </div>
-            <a id="download-link" class="hidden mt-6 bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-full font-black uppercase tracking-widest transition-all transform hover:scale-105 inline-block">Descargar Resultado</a>
         </div>
     </div>
 
     <script type="module">
-        // Usamos versiones específicas y compatibles de las utilidades
         import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/esm/index.js';
         import { fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
         const ffmpeg = new FFmpeg();
-        const consoleEl = document.getElementById('console');
-        const progressEl = document.getElementById('progress-bar');
-        const videoEl = document.getElementById('output-video');
-        const downloadBtn = document.getElementById('download-link');
+        const logger = document.getElementById('console');
+        const progress = document.getElementById('progress-bar');
 
         function log(msg) {
-            const time = new Date().toLocaleTimeString().split(' ')[0];
-            consoleEl.innerHTML += `<span class="text-gray-500">[${time}]</span> ${msg}<br>`;
-            consoleEl.scrollTop = consoleEl.scrollHeight;
+            logger.innerHTML += `<div class="mb-1"><span class="text-blue-400">#</span> ${msg}</div>`;
+            logger.scrollTop = logger.scrollHeight;
         }
 
-        async function render(action) {
-            const inputFile = document.getElementById('input-file').files[0];
+        async function process(type) {
+            const mainFile = document.getElementById('input-file').files[0];
             const audioFile = document.getElementById('audio-file').files[0];
 
-            if (!inputFile) return alert("Selecciona primero un archivo principal.");
+            if (!mainFile) return alert("Selecciona el archivo principal");
 
             try {
-                // Bloqueo de botones mientras procesa
-                document.querySelectorAll('button').forEach(b => b.disabled = true);
-                
                 if (!ffmpeg.loaded) {
-                    log("<span class='text-yellow-400 loading'>Cargando nucleo FFmpeg (esto puede tardar)...</span>");
+                    log("Cargando motor FFmpeg (aprox. 30MB)...");
                     await ffmpeg.load({
                         coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
                     });
                     ffmpeg.on('log', ({ message }) => log(message));
-                    ffmpeg.on('progress', ({ progress }) => {
-                        progressEl.style.width = `${progress * 100}%`;
+                    ffmpeg.on('progress', ({ progress: p }) => {
+                        progress.style.width = `${p * 100}%`;
                     });
                 }
 
-                log("Subiendo archivo al sistema virtual...");
-                await ffmpeg.writeFile('input', await fetchFile(inputFile));
-                
-                let args = [];
-                let outputName = 'output.mp4';
+                log("Subiendo archivos al sistema virtual...");
+                await ffmpeg.writeFile('input_src', await fetchFile(mainFile));
 
-                switch(action) {
-                    case 'merge':
-                        if(!audioFile) throw new Error("Falta el archivo de audio.");
-                        await ffmpeg.writeFile('audio', await fetchFile(audioFile));
-                        args = ['-loop', '1', '-i', 'input', '-i', 'audio', '-c:v', 'libx264', '-tune', 'stillimage', '-c:a', 'aac', '-b:a', '192k', '-pix_fmt', 'yuv420p', '-shortest', outputName];
-                        break;
-                    case 'trim':
-                        args = ['-i', 'input', '-ss', '00:00:10', '-to', '00:00:20', '-c:v', 'libx264', '-c:a', 'aac', outputName];
-                        break;
-                    case 'text':
-                        // Filtro de texto básico. Nota: FFmpeg.wasm tiene fuentes limitadas.
-                        args = ['-i', 'input', '-vf', "drawtext=text='EDITADO CON FFmpeg':x=(w-text_w)/2:y=h-50:fontsize=24:fontcolor=white", '-c:a', 'copy', outputName];
-                        break;
-                    case 'gif':
-                        outputName = 'output.gif';
-                        args = ['-i', 'input', '-vf', 'fps=10,scale=320:-1:flags=lanczos', outputName];
-                        break;
+                let command = [];
+                let outputName = 'output.mp4';
+                let mimeType = 'video/mp4';
+
+                if (type === 'merge') {
+                    if (!audioFile) throw new Error("Necesitas un audio para unirlo a la imagen");
+                    await ffmpeg.writeFile('audio_src', await fetchFile(audioFile));
+                    command = ['-loop', '1', '-i', 'input_src', '-i', 'audio_src', '-c:v', 'libx264', '-tune', 'stillimage', '-c:a', 'aac', '-b:a', '192k', '-pix_fmt', 'yuv420p', '-shortest', 'output.mp4'];
+                } else if (type === 'trim') {
+                    command = ['-i', 'input_src', '-ss', '00:00:10', '-to', '00:01:20', '-c', 'copy', 'output.mp4'];
+                } else if (type === 'text') {
+                    command = ['-i', 'input_src', '-vf', "drawtext=text='PROCESADO EN WEB':x=(w-text_w)/2:y=h-80:fontsize=48:fontcolor=white:box=1:boxcolor=black@0.5", '-c:a', 'copy', 'output.mp4'];
+                } else if (type === 'gif') {
+                    outputName = 'output.gif';
+                    mimeType = 'image/gif';
+                    command = ['-i', 'input_src', '-vf', 'fps=10,scale=480:-1:flags=lanczos', '-c:v', 'gif', 'output.gif'];
                 }
 
-                log("<b>Procesando... ten paciencia, esto usa tu CPU al 100%</b>");
-                await ffmpeg.exec(args);
+                log("Ejecutando FFmpeg... esto puede tardar según el tamaño del archivo.");
+                await ffmpeg.exec(command);
 
-                log("¡Proceso completado!");
                 const data = await ffmpeg.readFile(outputName);
-                const type = action === 'gif' ? 'image/gif' : 'video/mp4';
-                const url = URL.createObjectURL(new Blob([data.buffer], { type }));
+                const url = URL.createObjectURL(new Blob([data.buffer], { type: mimeType }));
                 
-                videoEl.src = url;
-                downloadBtn.href = url;
-                downloadBtn.download = outputName;
-                downloadBtn.classList.remove('hidden');
+                document.getElementById('output-video').src = url;
+                const dl = document.getElementById('download-link');
+                dl.href = url;
+                dl.download = outputName;
+                dl.classList.remove('hidden');
+                log("<b>¡Hecho! El resultado está listo abajo.</b>");
 
-            } catch (error) {
-                log(`<span class="text-red-500">ERROR: ${error.message}</span>`);
-                console.error(error);
-            } finally {
-                document.querySelectorAll('button').forEach(b => b.disabled = false);
+            } catch (err) {
+                log(`<span class="text-red-500 italic">Error: ${err.message}</span>`);
             }
         }
 
-        window.render = render;
+        window.process = process;
     </script>
 </body>
 </html>
