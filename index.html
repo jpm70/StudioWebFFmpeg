@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>FFmpeg Studio Web</title>
+    <script src="coi-serviceworker.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #0f172a; color: #e2e8f0; font-family: sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; }
+        #log { background: #000; color: #10b981; font-family: monospace; font-size: 11px; height: 150px; overflow-y: auto; }
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-black italic text-white tracking-tighter">FFMPEG<span class="text-blue-500">.STUDIO</span></h1>
+            <div id="setup-status" class="mt-2 text-xs font-bold py-1 px-3 rounded-full inline-block bg-red-500/20 text-red-500 border border-red-500/20">
+                ⚠️ SEGURIDAD DESACTIVADA (RECARGA LA PÁGINA)
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-6">
+                <div class="glass p-6">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">1. Carga</h2>
+                    <input type="file" id="f-main" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white mb-3">
+                    <input type="file" id="f-audio" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-600 file:text-white">
+                </div>
+                <div class="glass p-6 grid grid-cols-1 gap-2">
+                    <h2 class="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">2. Acciones</h2>
+                    <button onclick="run('merge')" class="bg-slate-800 hover:bg-blue-600 py-3 rounded-xl font-bold transition">Unir Multimedia</button>
+                    <button onclick="run('gif')" class="bg-slate-800 hover:bg-teal-600 py-3 rounded-xl font-bold transition">Crear GIF</button>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="glass overflow-hidden shadow-2xl">
+                    <video id="player" controls class="w-full bg-black aspect-video"></video>
+                </div>
+                <div id="log" class="p-4 rounded-xl border border-white/5"></div>
+                <a id="download" class="hidden w-full text-center bg-white text-black py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-400 transition">Descargar</a>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/esm/index.js';
+        import { fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+
+        const ffmpeg = new FFmpeg();
+        const status = document.getElementById('setup-status');
+
+        if (window.crossOriginIsolated) {
+            status.innerText = "✅ SEGURIDAD ACTIVA - MOTOR LISTO";
+            status.className = "mt-2 text-xs font-bold py-1 px-3 rounded-full inline-block bg-emerald-500/20 text-emerald-500 border border-emerald-500/20";
+        }
+
+        async function run(mode) {
+            const main = document.getElementById('f-main').files[0];
+            if (!main) return alert("Selecciona un archivo");
+
+            try {
+                if (!ffmpeg.loaded) {
+                    await ffmpeg.load({
+                        coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+                    });
+                }
+
+                ffmpeg.on('log', ({ message }) => {
+                    const l = document.getElementById('log');
+                    l.innerHTML += `<div>> ${message}</div>`;
+                    l.scrollTop = l.scrollHeight;
+                });
+
+                await ffmpeg.writeFile('in', await fetchFile(main));
+                let cmd = [], out = 'out.mp4';
+
+                if (mode === 'merge') {
+                    const aud = document.getElementById('f-audio').files[0];
+                    await ffmpeg.writeFile('aud', await fetchFile(aud));
+                    cmd = ['-loop', '1', '-i', 'in', '-i', 'aud', '-c:v', 'libx264', '-shortest', out];
+                } else {
+                    out = 'out.gif';
+                    cmd = ['-i', 'in', '-vf', 'fps=10,scale=480:-1', out];
+                }
+
+                await ffmpeg.exec(cmd);
+                const data = await ffmpeg.readFile(out);
+                const url = URL.createObjectURL(new Blob([data.buffer], { type: mode==='gif'?'image/gif':'video/mp4' }));
+                
+                document.getElementById('player').src = url;
+                const dl = document.getElementById('download');
+                dl.href = url; dl.download = out; dl.classList.remove('hidden');
+            } catch (e) { console.error(e); }
+        }
+        window.run = run;
+    </script>
+</body>
+</html>
