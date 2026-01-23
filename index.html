@@ -2,44 +2,75 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>FFmpeg Studio Web</title>
+    <title>FFmpeg Studio Pro + Progress Bar</title>
     <script src="coi-serviceworker.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: #0f172a; color: #e2e8f0; font-family: sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; }
-        #log { background: #000; color: #10b981; font-family: monospace; font-size: 11px; height: 150px; overflow-y: auto; }
+        body { background: #0b0e14; color: #cbd5e1; font-family: 'Inter', sans-serif; }
+        .glass { background: #161b22; border: 1px solid #30363d; border-radius: 1rem; }
+        #console { background: #000; color: #00ff00; font-family: 'Fira Code', monospace; font-size: 11px; height: 120px; overflow-y: auto; }
+        .progress-container { height: 12px; background: #1e293b; border-radius: 6px; overflow: hidden; }
+        #progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #2dd4bf); transition: width 0.2s ease-out; }
     </style>
 </head>
-<body class="p-6">
-    <div class="max-w-4xl mx-auto">
-        <header class="mb-10 text-center">
-            <h1 class="text-4xl font-black italic text-white tracking-tighter">FFMPEG<span class="text-blue-500">.STUDIO</span></h1>
-            <div id="setup-status" class="mt-2 text-xs font-bold py-1 px-3 rounded-full inline-block bg-red-500/20 text-red-500 border border-red-500/20">
-                ⚠️ SEGURIDAD DESACTIVADA (RECARGA LA PÁGINA)
+<body class="p-4 md:p-10">
+
+    <div class="max-w-5xl mx-auto">
+        <header class="flex justify-between items-center mb-8 border-b border-gray-800 pb-6">
+            <h1 class="text-3xl font-black italic text-white tracking-tighter">FFMPEG<span class="text-blue-500">.STUDIO</span></h1>
+            <div id="setup-status" class="text-[10px] font-bold py-1.5 px-4 rounded-full bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-widest">
+                Esperando Seguridad...
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="space-y-6">
-                <div class="glass p-6">
-                    <h2 class="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">1. Carga</h2>
-                    <input type="file" id="f-main" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-blue-600 file:text-white mb-3">
-                    <input type="file" id="f-audio" class="block w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-600 file:text-white">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass p-6 shadow-xl">
+                    <h2 class="text-xs font-black text-gray-500 uppercase mb-4 tracking-widest">1. Selección de Medios</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">Video o Imagen Base</label>
+                            <input type="file" id="f-main" class="w-full text-xs text-gray-400 file:bg-blue-600 file:text-white file:border-0 file:rounded-full file:px-4 file:py-2 hover:file:bg-blue-500 cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">Audio (Opcional)</label>
+                            <input type="file" id="f-audio" class="w-full text-xs text-gray-400 file:bg-emerald-600 file:text-white file:border-0 file:rounded-full file:px-4 file:py-2 hover:file:bg-emerald-500 cursor-pointer">
+                        </div>
+                    </div>
                 </div>
-                <div class="glass p-6 grid grid-cols-1 gap-2">
-                    <h2 class="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">2. Acciones</h2>
-                    <button onclick="run('merge')" class="bg-slate-800 hover:bg-blue-600 py-3 rounded-xl font-bold transition">Unir Multimedia</button>
-                    <button onclick="run('gif')" class="bg-slate-800 hover:bg-teal-600 py-3 rounded-xl font-bold transition">Crear GIF</button>
+
+                <div class="glass p-6 shadow-xl">
+                    <h2 class="text-xs font-black text-gray-500 uppercase mb-4 tracking-widest">2. Acciones Rápidas</h2>
+                    <div class="grid grid-cols-1 gap-3">
+                        <button onclick="run('merge')" class="w-full bg-slate-800 hover:bg-blue-600 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95">📸 Unir Multimedia</button>
+                        <button onclick="run('gif')" class="w-full bg-slate-800 hover:bg-teal-600 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-95">🖼️ Crear GIF Animado</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="space-y-4">
-                <div class="glass overflow-hidden shadow-2xl">
-                    <video id="player" controls class="w-full bg-black aspect-video"></video>
+            <div class="lg:col-span-8 space-y-6">
+                <div class="glass p-6 shadow-2xl">
+                    <div class="flex justify-between items-end mb-2">
+                        <h2 id="process-label" class="text-xs font-black text-blue-400 uppercase tracking-widest">Estado: Inactivo</h2>
+                        <span id="percent-text" class="text-2xl font-black text-white italic">0%</span>
+                    </div>
+                    <div class="progress-container">
+                        <div id="progress-fill"></div>
+                    </div>
                 </div>
-                <div id="log" class="p-4 rounded-xl border border-white/5"></div>
-                <a id="download" class="hidden w-full text-center bg-white text-black py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-400 transition">Descargar</a>
+
+                <div class="glass overflow-hidden shadow-2xl relative">
+                    <video id="player" controls class="w-full bg-black aspect-video"></video>
+                    <div id="working-spinner" class="absolute inset-0 bg-black/80 hidden flex items-center justify-center">
+                        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                </div>
+                
+                <div id="console" class="p-4 rounded-xl border border-gray-800 shadow-inner overflow-hidden">
+                    <div id="log"></div>
+                </div>
+                
+                <a id="download" class="hidden w-full text-center bg-white text-black py-4 rounded-xl font-black uppercase text-sm tracking-widest hover:bg-blue-400 transition shadow-xl">Descargar Archivo Final</a>
             </div>
         </div>
     </div>
@@ -49,16 +80,32 @@
         import { fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
         const ffmpeg = new FFmpeg();
-        const status = document.getElementById('setup-status');
+        const logContainer = document.getElementById('log');
+        const progressBar = document.getElementById('progress-fill');
+        const percentText = document.getElementById('percent-text');
+        const statusLabel = document.getElementById('process-label');
 
+        // Verificar seguridad Cross-Origin
         if (window.crossOriginIsolated) {
-            status.innerText = "✅ SEGURIDAD ACTIVA - MOTOR LISTO";
-            status.className = "mt-2 text-xs font-bold py-1 px-3 rounded-full inline-block bg-emerald-500/20 text-emerald-500 border border-emerald-500/20";
+            const badge = document.getElementById('setup-status');
+            badge.innerText = "✅ Seguridad Activa";
+            badge.className = "text-[10px] font-bold py-1.5 px-4 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase tracking-widest";
+        }
+
+        function writeLog(msg) {
+            const div = document.createElement('div');
+            div.className = "mb-1 border-b border-gray-900 pb-1";
+            div.innerHTML = `<span class="text-gray-600">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
         async function run(mode) {
             const main = document.getElementById('f-main').files[0];
-            if (!main) return alert("Selecciona un archivo");
+            if (!main) return alert("Selecciona un archivo principal.");
+
+            document.getElementById('working-spinner').classList.remove('hidden');
+            statusLabel.innerText = "Estado: Iniciando Motor...";
 
             try {
                 if (!ffmpeg.loaded) {
@@ -67,32 +114,53 @@
                     });
                 }
 
-                ffmpeg.on('log', ({ message }) => {
-                    const l = document.getElementById('log');
-                    l.innerHTML += `<div>> ${message}</div>`;
-                    l.scrollTop = l.scrollHeight;
+                // --- LÓGICA DE LA BARRA DE CARGA ---
+                ffmpeg.on('progress', ({ progress }) => {
+                    const percent = Math.round(progress * 100);
+                    progressBar.style.width = `${percent}%`;
+                    percentText.innerText = `${percent}%`;
+                    statusLabel.innerText = percent < 100 ? `Estado: Procesando...` : `Estado: Finalizando...`;
                 });
 
-                await ffmpeg.writeFile('in', await fetchFile(main));
-                let cmd = [], out = 'out.mp4';
+                ffmpeg.on('log', ({ message }) => writeLog(message));
+
+                writeLog("Cargando archivos al sistema virtual...");
+                await ffmpeg.writeFile('input_file', await fetchFile(main));
+
+                let cmd = [], out = 'result.mp4', mime = 'video/mp4';
 
                 if (mode === 'merge') {
-                    const aud = document.getElementById('f-audio').files[0];
-                    await ffmpeg.writeFile('aud', await fetchFile(aud));
-                    cmd = ['-loop', '1', '-i', 'in', '-i', 'aud', '-c:v', 'libx264', '-shortest', out];
-                } else {
-                    out = 'out.gif';
-                    cmd = ['-i', 'in', '-vf', 'fps=10,scale=480:-1', out];
+                    const audio = document.getElementById('f-audio').files[0];
+                    if (!audio) throw new Error("Se requiere un archivo de audio.");
+                    await ffmpeg.writeFile('audio_file', await fetchFile(audio));
+                    // Comando: Unir imagen estática y audio
+                    cmd = ['-loop', '1', '-i', 'input_file', '-i', 'audio_file', '-c:v', 'libx264', '-tune', 'stillimage', '-c:a', 'aac', '-b:a', '192k', '-pix_fmt', 'yuv420p', '-shortest', out];
+                } else if (mode === 'gif') {
+                    out = 'result.gif'; mime = 'image/gif';
+                    cmd = ['-i', 'input_file', '-vf', 'fps=10,scale=480:-1:flags=lanczos', out];
                 }
 
+                writeLog("<b>Ejecutando FFmpeg...</b>");
                 await ffmpeg.exec(cmd);
+
                 const data = await ffmpeg.readFile(out);
-                const url = URL.createObjectURL(new Blob([data.buffer], { type: mode==='gif'?'image/gif':'video/mp4' }));
+                const url = URL.createObjectURL(new Blob([data.buffer], { type: mime }));
                 
                 document.getElementById('player').src = url;
                 const dl = document.getElementById('download');
-                dl.href = url; dl.download = out; dl.classList.remove('hidden');
-            } catch (e) { console.error(e); }
+                dl.href = url;
+                dl.download = out;
+                dl.classList.remove('hidden');
+                
+                statusLabel.innerText = "Estado: ¡Tarea Completada!";
+                writeLog("<span class='text-blue-400 font-bold'>Proceso terminado con éxito.</span>");
+
+            } catch (err) {
+                writeLog(`<span class="text-red-500">Error: ${err.message}</span>`);
+                statusLabel.innerText = "Estado: Error en el proceso";
+            } finally {
+                document.getElementById('working-spinner').classList.add('hidden');
+            }
         }
         window.run = run;
     </script>
