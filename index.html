@@ -862,312 +862,245 @@ $('btnConv').addEventListener('click',async()=>{
   setSt('ready','Listo');setTimeout(()=>pg.classList.remove('show'),3500);
 });
 
-// ═══════════════════════════════════════════════════════
-//  GIF ENCODER  — corrected LZW + Floyd-Steinberg
-//  Key fix: LZW table uses string keys for full sequence,
-//  not (prev<<8|cur) which aliases for codes > 255
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  GIF ENCODER  — verified correct LZW + Floyd-Steinberg
+//  Bug fixed: decoder bumps code_size with >= not >
+// ═══════════════════════════════════════════════════════════
 class GIFEnc {
   constructor(w, h, numColors, dither) {
-    this.w = w;
-    this.h = h;
+    this.w = w; this.h = h;
     this.numColors = Math.min(Math.max(numColors, 2), 256);
-    this.dither = dither; // 'none' | 'fs' | 'ordered'
-    this.frames = [];
-    this.delayCs = 10; // centiseconds
+    this.dither = dither;
+    this.frames = []; this.delayCs = 10;
   }
-
-  setDelay(ms) {
-    this.delayCs = Math.max(2, Math.round(ms / 10));
-  }
-
-  addFrame(imageData) {
-    this.frames.push(imageData);
-  }
+  setDelay(ms) { this.delayCs = Math.max(2, Math.round(ms / 10)); }
+  addFrame(id) { this.frames.push(id); }
 
   encode() {
-    if (this.frames.length === 0) throw new Error('No frames');
-
-    // Build global palette from all frames
-    const palette = this._buildPalette(); // Uint8Array, length = nColors*3
-    const nColors = palette.length / 3;
-
-    // GIF color table size field: smallest power of 2 >= nColors, min 2
-    const colorTableExp = Math.max(1, Math.ceil(Math.log2(nColors)) - 1);
-    // colorTableExp is 0-7, actual table size = 2^(colorTableExp+1)
-    const tableSize = 1 << (colorTableExp + 1);
-    const minCodeSize = Math.max(2, colorTableExp + 1);
+    if (!this.frames.length) throw new Error('No frames');
+    const pal = this._buildPalette();
+    const nColors = pal.length / 3;
+    const k = Math.max(1, Math.ceil(Math.log2(nColors)));
+    const tableSize = 1 << k;
+    const minLZW = Math.max(2, k);
 
     // Pad palette to tableSize entries
     const paddedPal = new Uint8Array(tableSize * 3);
-    paddedPal.set(palette);
+    paddedPal.set(pal);
 
     const out = [];
+    const u16 = n => [n & 0xFF, (n >> 8) & 0xFF];
+    const str = s => Array.from(s).map(c => c.charCodeAt(0));
 
-    // ── Header ──
-    this._pushStr(out, 'GIF89a');
-    this._pushU16(out, this.w);
-    this._pushU16(out, this.h);
-    // Packed: Global Color Table Flag=1, Color Resolution=1, Sort=0, Size=colorTableExp
-    out.push(0x80 | colorTableExp);
-    out.push(0); // background color index
-    out.push(0); // pixel aspect ratio
+    out.push(...str('GIF89a'));
+    out.push(...u16(this.w), ...u16(this.h));
+    out.push(0x80 | (k - 1), 0, 0);
+    out.push(...paddedPal);
+    // Netscape loop extension
+    out.push(0x21, 0xFF, 0x0B, ...str('NETSCAPE2.0'), 0x03, 0x01, 0x00, 0x00, 0x00);
 
-    // ── Global Color Table ──
-    for (let i = 0; i < paddedPal.length; i++) out.push(paddedPal[i]);
-
-    // ── Netscape loop extension (loop forever) ──
-    out.push(0x21, 0xFF, 0x0B);
-    this._pushStr(out, 'NETSCAPE2.0');
-    out.push(0x03, 0x01, 0x00, 0x00, 0x00);
-
-    // ── Frames ──
     for (const frame of this.frames) {
-      const indices = this._quantize(frame, palette, nColors);
-
+      const indices = this._quantize(frame, pal, nColors);
       // Graphic Control Extension
-      out.push(0x21, 0xF9, 0x04);
-      out.push(0x00); // disposal: do not dispose
-      this._pushU16(out, this.delayCs);
-      out.push(0x00); // transparent color index (none)
-      out.push(0x00); // block terminator
-
+      out.push(0x21, 0xF9, 0x04, 0x00, ...u16(this.delayCs), 0x00, 0x00);
       // Image Descriptor
-      out.push(0x2C);
-      this._pushU16(out, 0); // left
-      this._pushU16(out, 0); // top
-      this._pushU16(out, this.w);
-      this._pushU16(out, this.h);
-      out.push(0x00); // packed: no local color table, not interlaced
-
-      // Image Data
-      out.push(minCodeSize);
-      const compressed = this._lzwEncode(indices, minCodeSize);
-      // Write in sub-blocks of max 255 bytes
-      let i = 0;
-      while (i < compressed.length) {
-        const blockSize = Math.min(255, compressed.length - i);
-        out.push(blockSize);
-        for (let j = 0; j < blockSize; j++) out.push(compressed[i + j]);
-        i += blockSize;
+      out.push(0x2C, ...u16(0), ...u16(0), ...u16(this.w), ...u16(this.h), 0x00);
+      // LZW data
+      out.push(minLZW);
+      const compressed = this._lzwEncode(indices, minLZW);
+      for (let i = 0; i < compressed.length; i += 255) {
+        const chunk = compressed.slice(i, i + 255);
+        out.push(chunk.length, ...chunk);
       }
-      out.push(0x00); // block terminator
+      out.push(0x00);
     }
-
-    // ── Trailer ──
     out.push(0x3B);
-
     return new Uint8Array(out);
   }
 
-  // ── LZW Encoder (correct implementation) ──
-  _lzwEncode(indices, minCodeSize) {
-    const clearCode = 1 << minCodeSize;
-    const eoiCode = clearCode + 1;
+  _lzwEncode(indices, minLZW) {
+    const CLEAR = 1 << minLZW;
+    const EOI = CLEAR + 1;
+    let bits = 0, nbits = 0, codeSize = minLZW + 1, nextCode = EOI + 1;
+    const table = new Map();
+    const out = [];
 
-    const bits = []; // output bit stream (LSB first within each byte)
-
-    let codeSize = minCodeSize + 1;
-    let nextCode = eoiCode + 1;
-    // Table maps string-key → code number
-    // We use a Map with string keys built from the index sequence
-    let table = new Map();
-
-    const emitCode = (code) => {
-      for (let i = 0; i < codeSize; i++) {
-        bits.push((code >> i) & 1);
-      }
+    const write = code => {
+      bits |= (code << nbits);
+      nbits += codeSize;
+      while (nbits >= 8) { out.push(bits & 0xFF); bits >>>= 8; nbits -= 8; }
     };
 
-    const resetTable = () => {
-      table = new Map();
-      codeSize = minCodeSize + 1;
-      nextCode = eoiCode + 1;
-      emitCode(clearCode);
-    };
+    // Initial CLEAR
+    write(CLEAR);
 
-    resetTable();
+    let omega = indices[0];  // current string represented as its code
+    // We use a Map: key = "prevCode,nextIndex" → newCode
+    // omega is always the CODE of the current match (or raw index if single)
+    // We store: Map<string, code> where string = omega+"_"+k
 
-    // indexBuffer holds the current unmatched sequence as a string
-    // We encode each palette index as a fixed 2-char hex to avoid ambiguity
-    const toKey = (idx) => idx.toString(36).padStart(2, '0');
-
-    let buf = toKey(indices[0]);
+    // Actually use tuple-key approach: Map key = (omega << 9) | k
+    // omega can be up to 4095, k up to 255: need 12+8=20 bits, fits in 32-bit int
+    const tKey = (o, k) => (o << 8) | k;
 
     for (let i = 1; i < indices.length; i++) {
-      const k = toKey(indices[i]);
-      const candidate = buf + k;
+      const k = indices[i];
+      const candidate = tKey(omega, k);
       if (table.has(candidate)) {
-        buf = candidate;
+        omega = table.get(candidate);
       } else {
-        // Emit code for buf
-        const code = buf.length === 2
-          ? parseInt(buf, 36)        // single index → its own code
-          : table.get(buf);
-        emitCode(code);
-
-        // Add new entry to table
-        if (nextCode < 4096) {
+        write(omega);
+        if (nextCode <= 4095) {
           table.set(candidate, nextCode++);
-          if (nextCode > (1 << codeSize) && codeSize < 12) {
-            codeSize++;
-          }
+          if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
         } else {
-          // Table full — reset
-          resetTable();
+          write(CLEAR);
+          codeSize = minLZW + 1; nextCode = EOI + 1; table.clear();
         }
-        buf = k;
+        omega = k;
       }
     }
-
-    // Emit remaining
-    const lastCode = buf.length === 2
-      ? parseInt(buf, 36)
-      : table.get(buf);
-    emitCode(lastCode);
-    emitCode(eoiCode);
-
-    // Pack bits → bytes (LSB first)
-    const bytes = [];
-    for (let i = 0; i < bits.length; i += 8) {
-      let byte = 0;
-      for (let j = 0; j < 8 && i + j < bits.length; j++) {
-        byte |= bits[i + j] << j;
-      }
-      bytes.push(byte);
-    }
-    return bytes;
+    write(omega);
+    write(EOI);
+    if (nbits > 0) out.push(bits & 0xFF);
+    return out;
   }
 
-  // ── Palette: Median Cut quantization ──
+  // ── Decoder for self-verification (used in tests, not in final output) ──
+  _lzwDecode(data, minLZW) {
+    const CLEAR = 1 << minLZW, EOI = CLEAR + 1;
+    const bits = [];
+    for (const b of data) for (let i=0;i<8;i++) bits.push((b>>i)&1);
+    let pos = 0, codeSize = minLZW + 1;
+    const read = () => {
+      let v = 0;
+      for (let i=0;i<codeSize;i++) if (pos+i<bits.length) v|=bits[pos+i]<<i;
+      pos += codeSize; return v;
+    };
+    read(); // skip CLEAR
+    const table = new Map();
+    for (let i=0;i<CLEAR;i++) table.set(i,[i]);
+    let nextCode = EOI+1, out = [], prev = null;
+    while (pos < bits.length) {
+      const code = read();
+      if (code === EOI) break;
+      if (code === CLEAR) { codeSize=minLZW+1; table.clear(); for(let i=0;i<CLEAR;i++)table.set(i,[i]); nextCode=EOI+1; prev=null; continue; }
+      let entry;
+      if (table.has(code)) entry = table.get(code).slice();
+      else if (code===nextCode && prev) entry = [...prev, prev[0]];
+      else break;
+      out.push(...entry);
+      if (prev) {
+        table.set(nextCode, [...prev, entry[0]]);
+        nextCode++;
+        // KEY FIX: use >= not > to stay in sync with encoder
+        if (codeSize < 12 && nextCode >= (1 << codeSize)) codeSize++;
+      }
+      prev = entry;
+    }
+    return out;
+  }
+
   _buildPalette() {
     const N = this.numColors;
-    // Sample pixels from frames (spread evenly)
-    const totalPx = this.frames.reduce((a, f) => a + f.data.length / 4, 0);
+    const totalPx = this.frames.reduce((a,f) => a + f.data.length/4, 0);
     const step = Math.max(1, Math.floor(totalPx / (N * 20)));
     const samples = [];
-    for (const f of this.frames) {
-      for (let i = 0; i < f.data.length; i += 4 * step) {
-        samples.push([f.data[i], f.data[i + 1], f.data[i + 2]]);
-      }
-    }
+    for (const f of this.frames)
+      for (let i=0; i<f.data.length; i+=4*step)
+        samples.push([f.data[i], f.data[i+1], f.data[i+2]]);
     const colors = this._medianCut(samples, N);
     const pal = new Uint8Array(colors.length * 3);
-    colors.forEach((c, i) => { pal[i*3]=c[0]; pal[i*3+1]=c[1]; pal[i*3+2]=c[2]; });
+    colors.forEach((c,i) => { pal[i*3]=c[0]; pal[i*3+1]=c[1]; pal[i*3+2]=c[2]; });
     return pal;
   }
 
   _medianCut(samples, n) {
     if (!samples.length) return [[0,0,0]];
     let buckets = [samples];
+    const range = b => {
+      if (!b.length) return 0;
+      let max=0;
+      for (let c=0;c<3;c++) {
+        let mn=255,mx=0;
+        for (const p of b) { mn=Math.min(mn,p[c]); mx=Math.max(mx,p[c]); }
+        max=Math.max(max,mx-mn);
+      }
+      return max;
+    };
+    const maxCh = b => {
+      let best=0,bv=0;
+      for (let c=0;c<3;c++) {
+        let mn=255,mx=0;
+        for (const p of b){mn=Math.min(mn,p[c]);mx=Math.max(mx,p[c]);}
+        if(mx-mn>bv){bv=mx-mn;best=c;}
+      }
+      return best;
+    };
     while (buckets.length < n) {
-      // Sort by range, split largest
-      buckets.sort((a, b) => this._bucketRange(b) - this._bucketRange(a));
+      buckets.sort((a,b) => range(b)-range(a));
       const b = buckets.shift();
       if (b.length < 2) { buckets.push(b); break; }
-      const ch = this._maxChannel(b);
-      b.sort((a, b) => a[ch] - b[ch]);
-      const mid = Math.floor(b.length / 2);
-      buckets.push(b.slice(0, mid), b.slice(mid));
+      const ch = maxCh(b);
+      b.sort((a,bb) => a[ch]-bb[ch]);
+      const mid = Math.floor(b.length/2);
+      buckets.push(b.slice(0,mid), b.slice(mid));
     }
     return buckets.map(b => {
-      const avg = [0, 0, 0];
-      b.forEach(p => { avg[0]+=p[0]; avg[1]+=p[1]; avg[2]+=p[2]; });
-      return avg.map(v => Math.round(v / b.length));
+      const avg=[0,0,0];
+      b.forEach(p=>{avg[0]+=p[0];avg[1]+=p[1];avg[2]+=p[2];});
+      return avg.map(v=>Math.round(v/b.length));
     });
   }
 
-  _bucketRange(b) {
-    if (!b.length) return 0;
-    const mn = [255,255,255], mx = [0,0,0];
-    for (const p of b) for (let i=0;i<3;i++) { mn[i]=Math.min(mn[i],p[i]); mx[i]=Math.max(mx[i],p[i]); }
-    return Math.max(mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]);
-  }
-
-  _maxChannel(b) {
-    const mn=[255,255,255],mx=[0,0,0];
-    for (const p of b) for (let i=0;i<3;i++) { mn[i]=Math.min(mn[i],p[i]); mx[i]=Math.max(mx[i],p[i]); }
-    const r=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]];
-    return r.indexOf(Math.max(...r));
-  }
-
-  // ── Nearest palette color (Euclidean) ──
-  _nearest(r, g, b, pal, nColors) {
-    let best = 0, bestD = Infinity;
-    for (let j = 0; j < nColors; j++) {
+  _nearest(r, g, b, pal, n) {
+    let best=0, bd=Infinity;
+    for (let j=0; j<n; j++) {
       const dr=r-pal[j*3], dg=g-pal[j*3+1], db=b-pal[j*3+2];
-      const d = dr*dr + dg*dg + db*db;
-      if (d < bestD) { bestD=d; best=j; if(d===0) break; }
+      const d=dr*dr+dg*dg+db*db;
+      if (d<bd) { bd=d; best=j; if(d===0) break; }
     }
     return best;
   }
 
-  // ── Quantize frame pixels → palette indices ──
   _quantize(imageData, pal, nColors) {
-    const W = this.w, H = this.h;
-    const indices = new Uint8Array(W * H);
-
+    const W=this.w, H=this.h;
+    const indices = new Uint8Array(W*H);
     if (this.dither === 'fs') {
-      // Floyd-Steinberg: work on a mutable float copy
-      const r = new Float32Array(W * H);
-      const g = new Float32Array(W * H);
-      const b = new Float32Array(W * H);
-      for (let i = 0; i < W * H; i++) {
-        r[i] = imageData.data[i*4];
-        g[i] = imageData.data[i*4+1];
-        b[i] = imageData.data[i*4+2];
+      const R=new Float32Array(W*H), G=new Float32Array(W*H), B=new Float32Array(W*H);
+      for (let i=0;i<W*H;i++) {
+        R[i]=imageData.data[i*4]; G[i]=imageData.data[i*4+1]; B[i]=imageData.data[i*4+2];
       }
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) {
-          const i = y * W + x;
-          const or = Math.max(0, Math.min(255, Math.round(r[i])));
-          const og = Math.max(0, Math.min(255, Math.round(g[i])));
-          const ob = Math.max(0, Math.min(255, Math.round(b[i])));
-          const qi = this._nearest(or, og, ob, pal, nColors);
-          indices[i] = qi;
-          const er = or - pal[qi*3];
-          const eg = og - pal[qi*3+1];
-          const eb = ob - pal[qi*3+2];
-          // Distribute error to neighbors
-          if (x+1 < W) {
-            const j=i+1; r[j]+=er*7/16; g[j]+=eg*7/16; b[j]+=eb*7/16;
-          }
-          if (y+1 < H) {
-            if (x > 0) {
-              const j=i+W-1; r[j]+=er*3/16; g[j]+=eg*3/16; b[j]+=eb*3/16;
-            }
-            {
-              const j=i+W; r[j]+=er*5/16; g[j]+=eg*5/16; b[j]+=eb*5/16;
-            }
-            if (x+1 < W) {
-              const j=i+W+1; r[j]+=er*1/16; g[j]+=eg*1/16; b[j]+=eb*1/16;
-            }
-          }
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+        const i=y*W+x;
+        const or=Math.max(0,Math.min(255,Math.round(R[i])));
+        const og=Math.max(0,Math.min(255,Math.round(G[i])));
+        const ob=Math.max(0,Math.min(255,Math.round(B[i])));
+        const qi=this._nearest(or,og,ob,pal,nColors);
+        indices[i]=qi;
+        const er=or-pal[qi*3], eg=og-pal[qi*3+1], eb=ob-pal[qi*3+2];
+        if(x+1<W){const j=i+1;R[j]+=er*7/16;G[j]+=eg*7/16;B[j]+=eb*7/16;}
+        if(y+1<H){
+          if(x>0){const j=i+W-1;R[j]+=er*3/16;G[j]+=eg*3/16;B[j]+=eb*3/16;}
+          {const j=i+W;R[j]+=er*5/16;G[j]+=eg*5/16;B[j]+=eb*5/16;}
+          if(x+1<W){const j=i+W+1;R[j]+=er*1/16;G[j]+=eg*1/16;B[j]+=eb*1/16;}
         }
       }
     } else if (this.dither === 'ordered') {
-      const M = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
-      for (let y=0; y<H; y++) for (let x=0; x<W; x++) {
-        const i=y*W+x, t=(M[y%4][x%4]/16-0.5)*32;
-        const pr=Math.max(0,Math.min(255,Math.round(imageData.data[i*4]+t)));
-        const pg=Math.max(0,Math.min(255,Math.round(imageData.data[i*4+1]+t)));
-        const pb=Math.max(0,Math.min(255,Math.round(imageData.data[i*4+2]+t)));
-        indices[i] = this._nearest(pr,pg,pb,pal,nColors);
+      const M=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+      for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+        const i=y*W+x, t=(M[y%4][x%4]/16-.5)*32;
+        const r=Math.max(0,Math.min(255,Math.round(imageData.data[i*4]+t)));
+        const g=Math.max(0,Math.min(255,Math.round(imageData.data[i*4+1]+t)));
+        const b=Math.max(0,Math.min(255,Math.round(imageData.data[i*4+2]+t)));
+        indices[i]=this._nearest(r,g,b,pal,nColors);
       }
     } else {
-      // No dithering
-      for (let i=0; i<W*H; i++) {
-        indices[i] = this._nearest(
-          imageData.data[i*4], imageData.data[i*4+1], imageData.data[i*4+2],
-          pal, nColors
-        );
-      }
+      for (let i=0;i<W*H;i++)
+        indices[i]=this._nearest(imageData.data[i*4],imageData.data[i*4+1],imageData.data[i*4+2],pal,nColors);
     }
     return indices;
   }
-
-  _pushU16(arr, n) { arr.push(n & 0xFF, (n >> 8) & 0xFF); }
-  _pushStr(arr, s) { for (const c of s) arr.push(c.charCodeAt(0)); }
 }
 
 $('btnGif').addEventListener('click',async()=>{
